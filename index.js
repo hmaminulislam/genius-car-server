@@ -26,6 +26,21 @@ const client = new MongoClient(uri, {
   serverApi: ServerApiVersion.v1,
 });
 
+function verifyJWT (req, res, next) {
+    const authHeader = req.headers.authorization
+    if(!authHeader) {
+        return res.status(401).send({message: 'unauthorize access'})
+    }
+    const token = authHeader.split(' ')[1]
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, function(error, decoded){
+        if(error) {
+            return res.status(401).send({ message: "unauthorize access" });
+        }
+        req.decoded = decoded
+        next()
+    })
+}
+
 async function run () {
     try{
         const servicesCollection = client.db("GeniusCar").collection("services");
@@ -45,8 +60,21 @@ async function run () {
             res.send(service)
         })
 
+        //jwt 
+        app.post("/jwt", (req, res) => {
+          const user = req.body;
+          const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+            expiresIn: "1d",
+          });
+          res.send({ token });
+        });
+
         // Orders api
-        app.get('/orders', async(req, res) => {
+        app.get('/orders', verifyJWT, async(req, res) => {
+            const docoded = req.docoded
+            if(docoded.email !== req.query.email) {
+                res.status(401).send({ message: "unauthorize access" });
+            }
             let query = {}
             if(req.query.email) {
                  query = {
